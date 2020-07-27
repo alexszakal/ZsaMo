@@ -1,32 +1,43 @@
 import pyads
 import socket
 import sys
+import configparser
+import BckhMotor
 
-#Ez egy teszt komment
+
+config = configparser.ConfigParser()
+config.read('conf.ini')                          #conf.ini beolvasása
 
 #ZSAMO Server config
-HOST = '192.168.1.121'                 # Symbolic name meaning all available interfaces
-PORT = 50007              # Arbitrary non-privileged port
+HOST = config['ZSAMO_SERVER']['IP']              # Symbolic name meaning all available interfaces
+PORT = config['ZSAMO_SERVER']['port']            # Arbitrary non-privileged port
 
-#Motor config
-speed = 30
-target_position_1 = 500
-target_position_2 = 0
-acceleration = 100
-deceleration = 100
+ADSaddr = config['ADS_COMMUNICATION']['ADSaddr']  
+ADSport = int(config['ADS_COMMUNICATION']['ADSport'])
 
 #Initialize PLC
-plc = pyads.Connection("5.59.19.32.1.1", 852)
+plc = pyads.Connection(ADSaddr, ADSport)
 plc.open()
-plc.write_by_name("GVL.axes[1].control.bEnable", True, pyads.PLCTYPE_BOOL)
-plc.write_by_name("GVL.axes[1].config.fVelocity", speed, pyads.PLCTYPE_LREAL)
-plc.write_by_name("GVL.axes[1].config.fAcceleration", acceleration, pyads.PLCTYPE_LREAL)
-plc.write_by_name("GVL.axes[1].config.fDeceleration", deceleration, pyads.PLCTYPE_LREAL)
-plc.write_by_name("GVL.axes[1].control.eCommand", 0, pyads.PLCTYPE_INT)
 
+#Motor config
+md = {}                                #motor dictionary: tartalmazza a motor száma - motor objektum párosokat
+for i in config.sections():            #végigemegyünk minden key-en az ini file-ban
+    if 'type' in config[i]:            #ellenörzi hogy motor e amit kiolvasunk az ini file-ból
+        mn = config[i]                 #motor number
+        md[mn['MotNum']] = BckhMotor.BckhMotor(plc, mn, mn['MotNum'], mn['unit'], mn['AbsoluteEnc'],
+                                               mn['SoftLimitLow'],mn['SoftLimitHigh'], mn['Speed'],
+                                               mn['Acceleration'],mn['Deceleration'], mn['Backlash'])
+
+
+
+#Plc-be irom GVL- könyvtárba
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((HOST, PORT))
 s.listen(1)
+
+    
+
+
 
 while 1:
     conn, addr = s.accept()
